@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A searchable, Noctalia-inspired keymap overlay for i3, Kitty, Vim and tmux."""
+"""A searchable, Noctalia-inspired keymap overlay for i3, Kitty, Vim, tmux and Yazi."""
 
 from __future__ import annotations
 
@@ -46,6 +46,7 @@ def static_keymaps(
     kitty_config: Path | None = None,
     vim_config: Path | None = None,
     tmux_config: Path | None = None,
+    yazi_config: Path | None = None,
 ) -> collections.OrderedDict[str, list[Entry]]:
     """Built-in standard shortcuts; personal mappings are intentionally excluded."""
     kitty = [
@@ -92,13 +93,25 @@ def static_keymaps(
         *shortcuts("Copy mode", ("<Ctrl> b [", "Enter copy mode"), ("<Ctrl> b ]", "Paste buffer"), ("<Ctrl> b =", "Choose buffer"), ("<Ctrl> b #", "List buffers")),
         *shortcuts("Commands and help", ("<Ctrl> b :", "Command prompt"), ("<Ctrl> b ?", "List key bindings"), ("<Ctrl> b t", "Clock")),
     ]
+    yazi = [
+        *shortcuts("Navigation", ("h", "Parent directory"), ("j", "Move down"), ("k", "Move up"), ("l", "Open selected item"), ("Enter", "Open selected item"), ("g g", "Go to top"), ("G", "Go to bottom"), ("K", "Seek preview up"), ("J", "Seek preview down"), ("g Space", "Go to path"), ("z", "Jump with fzf"), ("Z", "Jump with zoxide")),
+        *shortcuts("Selection", ("Space", "Toggle selection"), ("v", "Visual selection mode"), ("V", "Visual unset mode"), ("<Ctrl> a", "Select all"), ("<Ctrl> r", "Invert selection"), ("Esc", "Cancel selection")),
+        *shortcuts("File operations", ("o", "Open"), ("O", "Open interactively"), ("Tab", "Show file information"), ("y", "Yank (copy)"), ("x", "Yank (cut)"), ("p", "Paste"), ("P", "Paste and overwrite"), ("Y", "Cancel yank"), ("X", "Cancel yank"), ("d", "Move to trash"), ("D", "Delete permanently"), ("a", "Create file or directory"), ("r", "Rename"), (".", "Toggle hidden files")),
+        *shortcuts("Paths and shell", ("c c", "Copy file path"), ("c d", "Copy directory path"), ("c f", "Copy filename"), ("c n", "Copy filename without extension"), (";", "Run shell command"), (":", "Run blocking shell command"), ("-", "Create absolute symlink"), ("_", "Create relative symlink"), ("<Ctrl> -", "Create hardlink")),
+        *shortcuts("Find and search", ("f", "Filter files"), ("/", "Find next"), ("?", "Find previous"), ("n", "Next match"), ("N", "Previous match"), ("s", "Search filenames with fd"), ("S", "Search file contents with ripgrep"), ("<Ctrl> s", "Cancel search")),
+        *shortcuts("Sorting", (", m", "Sort by modified time"), (", M", "Modified time (reverse)"), (", e", "Sort by extension"), (", E", "Extension (reverse)"), (", a", "Sort alphabetically"), (", A", "Alphabetical (reverse)"), (", n", "Natural sort"), (", N", "Natural sort (reverse)"), (", s", "Sort by size"), (", S", "Size (reverse)"), (", r", "Random order")),
+        *shortcuts("Tabs", ("t t", "Create tab"), ("1…9", "Switch to tab"), ("[", "Previous tab"), ("]", "Next tab"), ("{", "Swap with previous tab"), ("}", "Swap with next tab"), ("<Ctrl> c", "Close current tab")),
+        *shortcuts("Help and quit", ("w", "Task manager"), ("F1", "Open help"), ("~", "Open help"), ("q", "Quit")),
+    ]
     if kitty_config and kitty_config.is_file():
         kitty.extend(parse_kitty_config(kitty_config))
     if vim_config and vim_config.is_file():
         vim.extend(parse_vim_config(vim_config))
     if tmux_config and tmux_config.is_file():
         tmux.extend(parse_tmux_config(tmux_config))
-    return collections.OrderedDict((("Kitty", kitty), ("Vim", vim), ("tmux", tmux)))
+    if yazi_config and yazi_config.is_file():
+        yazi.extend(parse_yazi_config(yazi_config))
+    return collections.OrderedDict((("Kitty", kitty), ("Vim", vim), ("tmux", tmux), ("Yazi", yazi)))
 
 
 def key_name(token: str) -> str:
@@ -263,6 +276,34 @@ def parse_tmux_config(path: Path) -> list[Entry]:
         chord = ([] if no_prefix else prefix) + tmux_key_tokens(key)
         action = note or command
         result.append(Entry("Custom mappings", compact_action(action), [chord]))
+    return result
+
+
+def parse_yazi_config(path: Path) -> list[Entry]:
+    """Parse inline keymap records from Yazi's keymap.toml.
+
+    Both ``keymap`` and ``prepend_keymap`` arrays are supported.  The parser is
+    intentionally small and only reads the ``on``, ``run`` and ``desc`` fields,
+    so it does not require a third-party TOML package on Python 3.10.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    result: list[Entry] = []
+    for record in re.findall(r"\{([^{}]*\bon\s*=\s*[^{}]+?)\}", text, re.S):
+        on_match = re.search(r"\bon\s*=\s*\[([^]]*)\]", record, re.S)
+        if on_match:
+            keys = re.findall(r'["\']((?:\\.|[^"\'])*)["\']', on_match.group(1))
+        else:
+            single = re.search(r"\bon\s*=\s*([\"\'])(.*?)\1", record, re.S)
+            keys = [single.group(2)] if single else []
+        if not keys:
+            continue
+        desc = re.search(r"\bdesc\s*=\s*([\"\'])(.*?)\1", record, re.S)
+        run = re.search(r"\brun\s*=\s*([\"\'])(.*?)\1", record, re.S)
+        action = (desc or run)
+        if not action:
+            continue
+        label = action.group(2).replace(r'\"', '"').replace(r"\'", "'")
+        result.append(Entry("Custom mappings", compact_action(label), [[key_name(key) for key in keys]]))
     return result
 
 
@@ -431,7 +472,7 @@ def run_gui(
             titlebox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             title = Gtk.Label(label="⌨  Keymap", xalign=0)
             title.get_style_context().add_class("title")
-            subtitle = Gtk.Label(label="1 i3  ·  2 Kitty  ·  3 Vim  ·  4 tmux", xalign=0)
+            subtitle = Gtk.Label(label="1 i3  ·  2 Kitty  ·  3 Vim  ·  4 tmux  ·  5 Yazi", xalign=0)
             subtitle.get_style_context().add_class("subtitle")
             titlebox.pack_start(title, False, False, 0)
             titlebox.pack_start(subtitle, False, False, 0)
@@ -537,15 +578,15 @@ def run_gui(
             if key and key.lower() == "f" and event.state & Gdk.ModifierType.CONTROL_MASK:
                 self.search.grab_focus()
                 return True
-            if key in ("1", "2", "3", "4") and not event.state & (
+            if key in ("1", "2", "3", "4", "5") and not event.state & (
                 Gdk.ModifierType.CONTROL_MASK
                 | Gdk.ModifierType.MOD1_MASK
                 | Gdk.ModifierType.SUPER_MASK
             ):
-                self.stack.set_visible_child_name(("i3", "kitty", "vim", "tmux")[int(key) - 1])
+                self.stack.set_visible_child_name(("i3", "kitty", "vim", "tmux", "yazi")[int(key) - 1])
                 return True
             if event.state & Gdk.ModifierType.CONTROL_MASK and key in ("Page_Up", "Page_Down"):
-                names = ("i3", "kitty", "vim", "tmux")
+                names = ("i3", "kitty", "vim", "tmux", "yazi")
                 index = names.index(self.current_page)
                 step = -1 if key == "Page_Up" else 1
                 self.stack.set_visible_child_name(names[(index + step) % len(names)])
@@ -561,6 +602,7 @@ def main() -> int:
     parser.add_argument("--kitty-config", type=Path, default=Path("~/.config/kitty/kitty.conf").expanduser())
     parser.add_argument("--vim-config", type=Path, default=Path("~/.vimrc").expanduser())
     parser.add_argument("--tmux-config", type=Path, default=Path("~/.tmux.conf").expanduser())
+    parser.add_argument("--yazi-config", type=Path, default=Path("~/.config/yazi/keymap.toml").expanduser())
     parser.add_argument("--check", action="store_true", help="validate and summarize without opening GTK")
     parser.add_argument("--dump", action="store_true", help="print parsed shortcuts")
     args = parser.parse_args()
@@ -570,14 +612,14 @@ def main() -> int:
         parser.error(str(exc))
     if not entries:
         parser.error(f"no bindsym entries or annotations found in {args.config}")
-    extra_maps = static_keymaps(args.kitty_config, args.vim_config, args.tmux_config)
+    extra_maps = static_keymaps(args.kitty_config, args.vim_config, args.tmux_config, args.yazi_config)
     if args.check:
         sections = len({entry.section for entry in entries})
         chords = sum(len(entry.chords) for entry in entries)
         print(f"OK: {chords} shortcuts, {len(entries)} actions, {sections} sections from {args.config}")
         for name, map_entries in extra_maps.items():
             custom = sum(entry.section == "Custom mappings" for entry in map_entries)
-            source = {"Kitty": args.kitty_config, "Vim": args.vim_config, "tmux": args.tmux_config}[name]
+            source = {"Kitty": args.kitty_config, "Vim": args.vim_config, "tmux": args.tmux_config, "Yazi": args.yazi_config}[name]
             status = str(source) if source.is_file() else "config not found"
             print(f"{name}: {len(map_entries)} actions ({custom} custom) — {status}")
         return 0

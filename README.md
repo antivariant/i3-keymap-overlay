@@ -3,12 +3,14 @@
 A searchable, full-screen keyboard shortcut overlay for **i3/X11**, inspired by
 the Noctalia Keymap plugin.
 
-It combines four reference pages in one window:
+It combines five reference pages in one window:
 
 - **i3** — shortcuts parsed live from the active i3 configuration;
 - **Kitty** — built-in shortcuts plus custom mappings from `kitty.conf`;
 - **Vim** — a practical reference plus mappings imported from `.vimrc`;
 - **tmux** — built-in shortcuts plus bindings imported from `.tmux.conf`.
+- **Yazi** — built-in file-manager shortcuts plus mappings imported from
+  `keymap.toml`.
 
 The overlay uses GTK 3, has no Python package dependencies, and is designed for
 keyboard-driven i3 environments.
@@ -22,7 +24,7 @@ keyboard-driven i3 environments.
 - keyboard and mouse tab switching;
 - case-sensitive Vim commands (`i` and `I`, `v` and `V`, etc.);
 - a detailed Vim reference, including Visual Block commenting;
-- automatic import of custom Kitty, Vim, and tmux mappings;
+- automatic import of custom Kitty, Vim, tmux, and Yazi mappings;
 - repeat invocation closes the existing overlay;
 - optional Remontoire-compatible annotations in the i3 config.
 
@@ -132,6 +134,7 @@ bindsym $mod+question exec --no-startup-id /home/YOUR_USER/.local/bin/i3-keymap-
 | `2` | Open the Kitty page |
 | `3` | Open the Vim page |
 | `4` | Open the tmux page |
+| `5` | Open the Yazi page |
 | `Ctrl+PageUp` | Previous page |
 | `Ctrl+PageDown` | Next page |
 | `Ctrl+F` | Focus search |
@@ -149,10 +152,26 @@ The default files are:
 | Kitty | `~/.config/kitty/kitty.conf` | `kitty_mod`, `map` |
 | Vim | `~/.vimrc` | `map`, `nmap`, `nnoremap`, `imap`, `vnoremap`, etc. |
 | tmux | `~/.tmux.conf` | `prefix`, `bind`, `bind-key` |
+| Yazi | `~/.config/yazi/keymap.toml` | `keymap`, `prepend_keymap` entries |
 
-Imported Kitty, Vim, and tmux shortcuts appear in a separate **Custom
+Imported Kitty, Vim, tmux, and Yazi shortcuts appear in a separate **Custom
 mappings** category. Missing configuration files are ignored; the built-in
 reference remains available.
+
+For example, the Yazi GVfs mappings are imported automatically:
+
+```toml
+[mgr]
+prepend_keymap = [
+  { on = [ "M", "a" ], run = "plugin gvfs -- add-mount", desc = "Add network mount" },
+  { on = [ "M", "m" ], run = "plugin gvfs -- select-then-mount --jump", desc = "Mount and open network resource" },
+  { on = [ "g", "m" ], run = "plugin gvfs -- jump-to-device", desc = "Open mounted resource" },
+  { on = [ "M", "u" ], run = "plugin gvfs -- select-then-unmount", desc = "Unmount network resource" },
+]
+```
+
+Yazi key sequences are shown in order: `M` then `a` is displayed as two
+separate keycaps and does not mean `Shift+M+A`.
 
 Mappings are read each time the overlay starts. Close and reopen the overlay
 after editing a configuration file.
@@ -164,7 +183,8 @@ i3-keymap-overlay \
   --config ~/.config/i3/config \
   --kitty-config ~/.config/kitty/custom.conf \
   --vim-config ~/.vim/vimrc \
-  --tmux-config ~/.config/tmux/tmux.conf
+  --tmux-config ~/.config/tmux/tmux.conf \
+  --yazi-config ~/.config/yazi/keymap.toml
 ```
 
 Use the same arguments in the i3 `bindsym` command if the alternative paths
@@ -202,6 +222,7 @@ shown twice.
 --kitty-config PATH   Kitty configuration file
 --vim-config PATH     Vim configuration file
 --tmux-config PATH    tmux configuration file
+--yazi-config PATH    Yazi keymap configuration file
 --check               Validate configuration and print a summary
 --dump                Print parsed i3 shortcuts without opening GTK
 ```
