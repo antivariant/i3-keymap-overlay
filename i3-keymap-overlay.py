@@ -401,17 +401,24 @@ def dump_entries(entries: list[Entry]) -> None:
 CSS = r"""
 window { background: rgba(29,32,33,0.97); color: #ebdbb2; }
 .root { padding: 24px 30px 30px; }
+.root.compact { padding: 12px 16px 16px; }
+.root.narrow { padding: 10px 12px 12px; }
 .title { font-size: 22px; font-weight: 700; color: #d5c4a1; }
+.compact .title { font-size: 18px; }
 .subtitle { color: #928374; }
 .search { min-width: 300px; border-radius: 8px; padding: 6px 10px;
           background: #282828; color: #ebdbb2; border: 1px solid #504945; }
 .card { background: rgba(40,40,40,0.94); border: 1px solid #3c3836;
         border-radius: 12px; padding: 14px; }
+.compact .card { border-radius: 9px; padding: 9px; }
 .section { font-size: 15px; font-weight: 700; color: #b8bb26; margin-bottom: 7px; }
+.compact .section { font-size: 13px; margin-bottom: 4px; }
 .row { padding: 3px 0; }
+.compact .row { padding: 1px 0; }
 .action { color: #d5c4a1; }
 .key { background: #504945; color: #ebdbb2; border-radius: 4px; padding: 3px 7px;
        border: 1px solid #665c54; font-weight: 700; }
+.compact .key { padding: 2px 5px; }
 .super { background: #98971a; color: #1d2021; border-color: #b8bb26; }
 .ctrl { background: #458588; color: #1d2021; border-color: #83a598; }
 .alt { background: #b16286; color: #1d2021; border-color: #d3869b; }
@@ -441,6 +448,48 @@ def run_gui(
             self.window = None
             self.cards = []
             self.current_page = "i3"
+            self.viewport_width = 1280
+            self.viewport_height = 800
+            self.columns = 3
+            self.card_width = 360
+            self.compact = True
+            self.narrow = False
+
+        def update_viewport_metrics(self):
+            """Choose a layout from the monitor's logical pixel dimensions."""
+            screen = Gdk.Screen.get_default()
+            width = screen.get_width() if screen else 1280
+            height = screen.get_height() if screen else 800
+
+            display = Gdk.Display.get_default()
+            if display and hasattr(display, "get_primary_monitor"):
+                monitor = display.get_primary_monitor()
+                if monitor is None and display.get_n_monitors():
+                    monitor = display.get_monitor(0)
+                if monitor is not None:
+                    geometry = monitor.get_geometry()
+                    width, height = geometry.width, geometry.height
+
+            self.viewport_width = max(width, 320)
+            self.viewport_height = max(height, 240)
+            self.compact = self.viewport_height <= 900 or self.viewport_width <= 1366
+            self.narrow = self.viewport_width < 760
+
+            outer_padding = 24 if self.narrow else (32 if self.compact else 60)
+            column_gap = 8 if self.compact else 12
+            available = max(280, self.viewport_width - outer_padding)
+
+            if available >= 1460:
+                self.columns = 4
+            elif available >= 980:
+                self.columns = 3
+            elif available >= 620:
+                self.columns = 2
+            else:
+                self.columns = 1
+
+            width_for_cards = available - column_gap * (self.columns - 1)
+            self.card_width = max(260, min(390, width_for_cards // self.columns - 4))
 
         def do_startup(self):
             Gtk.Application.do_startup(self)
@@ -461,14 +510,30 @@ def run_gui(
             self.window.set_app_paintable(True)
             self.window.connect("key-press-event", self.on_key)
             self.window.connect("destroy", lambda *_: self.quit())
+            self.update_viewport_metrics()
             self.window.add(self.build_ui())
             self.window.fullscreen()
             self.window.show_all()
 
         def build_ui(self):
-            root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-            root.get_style_context().add_class("root")
-            header = Gtk.Box(spacing=14)
+            root = Gtk.Box(
+                orientation=Gtk.Orientation.VERTICAL,
+                spacing=8 if self.compact else 16,
+            )
+            root_context = root.get_style_context()
+            root_context.add_class("root")
+            if self.compact:
+                root_context.add_class("compact")
+            if self.narrow:
+                root_context.add_class("narrow")
+            header = Gtk.Box(
+                orientation=(
+                    Gtk.Orientation.VERTICAL
+                    if self.narrow
+                    else Gtk.Orientation.HORIZONTAL
+                ),
+                spacing=8 if self.compact else 14,
+            )
             titlebox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             title = Gtk.Label(label="⌨  Keymap", xalign=0)
             title.get_style_context().add_class("title")
@@ -505,13 +570,18 @@ def run_gui(
         def make_page(self, page_name, page_entries):
             scroll = Gtk.ScrolledWindow()
             scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scroll.set_overlay_scrolling(True)
+            scroll.set_propagate_natural_height(False)
+            scroll.set_vexpand(True)
             flow = Gtk.FlowBox()
             flow.set_selection_mode(Gtk.SelectionMode.NONE)
             flow.set_homogeneous(False)
-            flow.set_row_spacing(12)
-            flow.set_column_spacing(12)
-            flow.set_min_children_per_line(3)
-            flow.set_max_children_per_line(4)
+            spacing = 8 if self.compact else 12
+            flow.set_row_spacing(spacing)
+            flow.set_column_spacing(spacing)
+            flow.set_min_children_per_line(1)
+            flow.set_max_children_per_line(self.columns)
+            flow.set_valign(Gtk.Align.START)
             sections = collections.OrderedDict()
             for entry in page_entries:
                 sections.setdefault(entry.section, []).append(entry)
@@ -523,19 +593,34 @@ def run_gui(
 
         def make_card(self, page, section, section_entries):
             card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-            card.set_size_request(390, -1)
+            card.set_size_request(self.card_width, -1)
             card.get_style_context().add_class("card")
             heading = Gtk.Label(label=section, xalign=0)
             heading.get_style_context().add_class("section")
             card.pack_start(heading, False, False, 0)
             records = []
             for entry in section_entries:
-                row = Gtk.Box(spacing=10)
+                row = Gtk.Box(
+                    orientation=(
+                        Gtk.Orientation.VERTICAL
+                        if self.card_width < 340
+                        else Gtk.Orientation.HORIZONTAL
+                    ),
+                    spacing=6 if self.compact else 10,
+                )
                 row.get_style_context().add_class("row")
-                keybox = Gtk.Box(spacing=3)
+                keybox = Gtk.FlowBox()
+                keybox.set_selection_mode(Gtk.SelectionMode.NONE)
+                keybox.set_homogeneous(False)
+                keybox.set_row_spacing(3)
+                keybox.set_column_spacing(3)
+                keybox.set_min_children_per_line(1)
+                keybox.set_max_children_per_line(8)
+                keybox.set_valign(Gtk.Align.START)
+                keybox.set_size_request(max(120, int(self.card_width * 0.44)), -1)
                 for ci, chord in enumerate(entry.chords):
                     if ci:
-                        keybox.pack_start(Gtk.Label(label="or"), False, False, 2)
+                        keybox.add(Gtk.Label(label="or"))
                     for key in chord:
                         label = Gtk.Label(label=key)
                         context = label.get_style_context()
@@ -543,7 +628,7 @@ def run_gui(
                         lower = key.lower()
                         if lower in ("super", "ctrl", "alt", "shift"):
                             context.add_class(lower)
-                        keybox.pack_start(label, False, False, 0)
+                        keybox.add(label)
                 action = Gtk.Label(label=entry.action, xalign=0)
                 action.set_line_wrap(True)
                 action.get_style_context().add_class("action")
