@@ -399,26 +399,27 @@ def dump_entries(entries: list[Entry]) -> None:
 
 
 CSS = r"""
-window { background: rgba(29,32,33,0.97); color: #ebdbb2; }
+window { background: rgba(29,32,33,0.97); color: #ebdbb2; font-size: 12px; }
 .root { padding: 24px 30px 30px; }
-.root.compact { padding: 12px 16px 16px; }
-.root.narrow { padding: 10px 12px 12px; }
+.root.compact { padding: 9px 12px 12px; font-size: 10px; }
+.root.narrow { padding: 7px 9px 9px; font-size: 9px; }
 .title { font-size: 22px; font-weight: 700; color: #d5c4a1; }
-.compact .title { font-size: 18px; }
+.compact .title { font-size: 16px; }
 .subtitle { color: #928374; }
 .search { min-width: 300px; border-radius: 8px; padding: 6px 10px;
           background: #282828; color: #ebdbb2; border: 1px solid #504945; }
+.compact .search { min-width: 220px; padding: 3px 7px; }
 .card { background: rgba(40,40,40,0.94); border: 1px solid #3c3836;
         border-radius: 12px; padding: 14px; }
-.compact .card { border-radius: 9px; padding: 9px; }
+.compact .card { border-radius: 8px; padding: 7px; }
 .section { font-size: 15px; font-weight: 700; color: #b8bb26; margin-bottom: 7px; }
-.compact .section { font-size: 13px; margin-bottom: 4px; }
+.compact .section { font-size: 12px; margin-bottom: 3px; }
 .row { padding: 3px 0; }
 .compact .row { padding: 1px 0; }
 .action { color: #d5c4a1; }
 .key { background: #504945; color: #ebdbb2; border-radius: 4px; padding: 3px 7px;
        border: 1px solid #665c54; font-weight: 700; }
-.compact .key { padding: 2px 5px; }
+.compact .key { padding: 1px 4px; }
 .super { background: #98971a; color: #1d2021; border-color: #b8bb26; }
 .ctrl { background: #458588; color: #1d2021; border-color: #83a598; }
 .alt { background: #b16286; color: #1d2021; border-color: #d3869b; }
@@ -475,21 +476,21 @@ def run_gui(
             self.compact = self.viewport_height <= 900 or self.viewport_width <= 1366
             self.narrow = self.viewport_width < 760
 
-            outer_padding = 24 if self.narrow else (32 if self.compact else 60)
-            column_gap = 8 if self.compact else 12
+            outer_padding = 18 if self.narrow else (24 if self.compact else 60)
+            column_gap = 7 if self.compact else 12
             available = max(280, self.viewport_width - outer_padding)
 
             if available >= 1460:
                 self.columns = 4
-            elif available >= 980:
+            elif available >= 900:
                 self.columns = 3
-            elif available >= 620:
+            elif available >= 600:
                 self.columns = 2
             else:
                 self.columns = 1
 
             width_for_cards = available - column_gap * (self.columns - 1)
-            self.card_width = max(260, min(390, width_for_cards // self.columns - 4))
+            self.card_width = max(250, min(360, width_for_cards // self.columns - 4))
 
         def do_startup(self):
             Gtk.Application.do_startup(self)
@@ -603,10 +604,10 @@ def run_gui(
                 row = Gtk.Box(
                     orientation=(
                         Gtk.Orientation.VERTICAL
-                        if self.card_width < 340
+                        if self.card_width < 290
                         else Gtk.Orientation.HORIZONTAL
                     ),
-                    spacing=6 if self.compact else 10,
+                    spacing=4 if self.compact else 10,
                 )
                 row.get_style_context().add_class("row")
                 keybox = Gtk.FlowBox()
@@ -615,12 +616,12 @@ def run_gui(
                 keybox.set_row_spacing(3)
                 keybox.set_column_spacing(3)
                 keybox.set_min_children_per_line(1)
-                keybox.set_max_children_per_line(8)
+                keybox.set_max_children_per_line(3)
                 keybox.set_valign(Gtk.Align.START)
-                keybox.set_size_request(max(120, int(self.card_width * 0.44)), -1)
                 for ci, chord in enumerate(entry.chords):
                     if ci:
                         keybox.add(Gtk.Label(label="or"))
+                    chord_box = Gtk.Box(spacing=3)
                     for key in chord:
                         label = Gtk.Label(label=key)
                         context = label.get_style_context()
@@ -628,9 +629,11 @@ def run_gui(
                         lower = key.lower()
                         if lower in ("super", "ctrl", "alt", "shift"):
                             context.add_class(lower)
-                        keybox.add(label)
+                        chord_box.pack_start(label, False, False, 0)
+                    keybox.add(chord_box)
                 action = Gtk.Label(label=entry.action, xalign=0)
                 action.set_line_wrap(True)
+                action.set_max_width_chars(30)
                 action.get_style_context().add_class("action")
                 row.pack_start(keybox, False, False, 0)
                 row.pack_start(action, True, True, 0)
