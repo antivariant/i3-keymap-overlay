@@ -609,21 +609,8 @@ def run_gui(
 
             records = []
             for row_index, entry in enumerate(section_entries):
-                keybox = Gtk.Box(
-                    orientation=Gtk.Orientation.HORIZONTAL,
-                    spacing=3,
-                )
-                keybox.set_halign(Gtk.Align.START)
-                keybox.set_valign(Gtk.Align.CENTER)
-
-                for ci, chord in enumerate(entry.chords):
-                    if ci:
-                        keybox.pack_start(
-                            Gtk.Label(label="or"),
-                            False,
-                            False,
-                            2,
-                        )
+                chord_boxes = []
+                for chord in entry.chords:
                     chord_box = Gtk.Box(spacing=3)
                     for key in chord:
                         label = Gtk.Label(label=key)
@@ -633,12 +620,42 @@ def run_gui(
                         if lower in ("super", "ctrl", "alt", "shift"):
                             context.add_class(lower)
                         chord_box.pack_start(label, False, False, 0)
-                    keybox.pack_start(
-                        chord_box,
-                        False,
-                        False,
-                        0,
-                    )
+                    chord_boxes.append(chord_box)
+
+                separators = [Gtk.Label(label="or") for _ in chord_boxes[1:]]
+                natural_width = sum(
+                    chord_box.get_preferred_width()[1]
+                    for chord_box in chord_boxes
+                )
+                natural_width += sum(
+                    separator.get_preferred_width()[1] + 4
+                    for separator in separators
+                )
+                key_width_budget = max(120, int(self.card_width * 0.48))
+                stack_alternatives = (
+                    len(chord_boxes) > 1
+                    and natural_width > key_width_budget
+                )
+
+                keybox = Gtk.Box(
+                    orientation=(
+                        Gtk.Orientation.VERTICAL
+                        if stack_alternatives
+                        else Gtk.Orientation.HORIZONTAL
+                    ),
+                    spacing=3,
+                )
+                keybox.set_halign(Gtk.Align.START)
+                keybox.set_valign(Gtk.Align.CENTER)
+
+                for ci, chord_box in enumerate(chord_boxes):
+                    if ci:
+                        separator = separators[ci - 1]
+                        if stack_alternatives:
+                            separator.set_halign(Gtk.Align.CENTER)
+                            separator.set_hexpand(True)
+                        keybox.pack_start(separator, False, False, 2)
+                    keybox.pack_start(chord_box, False, False, 0)
 
                 action = Gtk.Label(label=entry.action, xalign=0)
                 action.set_line_wrap(True)
