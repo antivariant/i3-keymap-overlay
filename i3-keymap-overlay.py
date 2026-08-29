@@ -599,17 +599,16 @@ def run_gui(
             heading = Gtk.Label(label=section, xalign=0)
             heading.get_style_context().add_class("section")
             card.pack_start(heading, False, False, 0)
+
+            rows = Gtk.Grid()
+            rows.set_column_homogeneous(False)
+            rows.set_column_spacing(6 if self.compact else 10)
+            rows.set_row_spacing(3 if self.compact else 6)
+            rows.set_hexpand(True)
+            card.pack_start(rows, False, False, 0)
+
             records = []
-            for entry in section_entries:
-                row = Gtk.Box(
-                    orientation=(
-                        Gtk.Orientation.VERTICAL
-                        if self.card_width < 290
-                        else Gtk.Orientation.HORIZONTAL
-                    ),
-                    spacing=4 if self.compact else 10,
-                )
-                row.get_style_context().add_class("row")
+            for row_index, entry in enumerate(section_entries):
                 keybox = Gtk.FlowBox()
                 keybox.set_selection_mode(Gtk.SelectionMode.NONE)
                 keybox.set_homogeneous(False)
@@ -617,7 +616,9 @@ def run_gui(
                 keybox.set_column_spacing(3)
                 keybox.set_min_children_per_line(1)
                 keybox.set_max_children_per_line(3)
-                keybox.set_valign(Gtk.Align.START)
+                keybox.set_halign(Gtk.Align.START)
+                keybox.set_valign(Gtk.Align.CENTER)
+
                 for ci, chord in enumerate(entry.chords):
                     if ci:
                         keybox.add(Gtk.Label(label="or"))
@@ -631,23 +632,26 @@ def run_gui(
                             context.add_class(lower)
                         chord_box.pack_start(label, False, False, 0)
                     keybox.add(chord_box)
-                key_column = Gtk.Box()
-                key_column.set_size_request(
-                    max(128, int(self.card_width * 0.46)),
-                    -1,
-                )
-                key_column.pack_start(keybox, False, False, 0)
 
                 action = Gtk.Label(label=entry.action, xalign=0)
                 action.set_line_wrap(True)
                 action.set_max_width_chars(22)
+                action.set_hexpand(True)
+                action.set_halign(Gtk.Align.FILL)
                 action.set_valign(Gtk.Align.CENTER)
                 action.set_yalign(0.5)
                 action.get_style_context().add_class("action")
-                row.pack_start(key_column, False, False, 0)
-                row.pack_start(action, True, True, 0)
-                card.pack_start(row, False, False, 0)
-                records.append((row, entry.action.lower(), " ".join(sum(entry.chords, [])).lower()))
+
+                rows.attach(keybox, 0, row_index, 1, 1)
+                rows.attach(action, 1, row_index, 1, 1)
+                records.append(
+                    (
+                        (keybox, action),
+                        entry.action.lower(),
+                        " ".join(sum(entry.chords, [])).lower(),
+                    )
+                )
+
             self.cards.append((page, card, heading, section.lower(), records))
             return card
 
@@ -661,9 +665,10 @@ def run_gui(
                 if page != self.current_page:
                     continue
                 any_visible = False
-                for row, action, keys in records:
+                for row_widgets, action, keys in records:
                     visible = not query or query in section or query in action or query in keys
-                    row.set_visible(visible)
+                    for widget in row_widgets:
+                        widget.set_visible(visible)
                     any_visible |= visible
                 card.set_visible(any_visible)
 
