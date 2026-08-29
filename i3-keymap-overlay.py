@@ -609,19 +609,21 @@ def run_gui(
 
             records = []
             for row_index, entry in enumerate(section_entries):
-                keybox = Gtk.FlowBox()
-                keybox.set_selection_mode(Gtk.SelectionMode.NONE)
-                keybox.set_homogeneous(False)
-                keybox.set_row_spacing(3)
-                keybox.set_column_spacing(3)
-                keybox.set_min_children_per_line(1)
-                keybox.set_max_children_per_line(3)
+                keybox = Gtk.Box(
+                    orientation=Gtk.Orientation.HORIZONTAL,
+                    spacing=3,
+                )
                 keybox.set_halign(Gtk.Align.START)
                 keybox.set_valign(Gtk.Align.CENTER)
 
                 for ci, chord in enumerate(entry.chords):
                     if ci:
-                        keybox.add(Gtk.Label(label="or"))
+                        keybox.pack_start(
+                            Gtk.Label(label="or"),
+                            False,
+                            False,
+                            2,
+                        )
                     chord_box = Gtk.Box(spacing=3)
                     for key in chord:
                         label = Gtk.Label(label=key)
@@ -631,7 +633,12 @@ def run_gui(
                         if lower in ("super", "ctrl", "alt", "shift"):
                             context.add_class(lower)
                         chord_box.pack_start(label, False, False, 0)
-                    keybox.add(chord_box)
+                    keybox.pack_start(
+                        chord_box,
+                        False,
+                        False,
+                        0,
+                    )
 
                 action = Gtk.Label(label=entry.action, xalign=0)
                 action.set_line_wrap(True)
