@@ -631,11 +631,20 @@ def run_gui(
                             context.add_class(lower)
                         chord_box.pack_start(label, False, False, 0)
                     keybox.add(chord_box)
+                key_column = Gtk.Box()
+                key_column.set_size_request(
+                    max(128, int(self.card_width * 0.46)),
+                    -1,
+                )
+                key_column.pack_start(keybox, False, False, 0)
+
                 action = Gtk.Label(label=entry.action, xalign=0)
                 action.set_line_wrap(True)
-                action.set_max_width_chars(30)
+                action.set_max_width_chars(22)
+                action.set_valign(Gtk.Align.CENTER)
+                action.set_yalign(0.5)
                 action.get_style_context().add_class("action")
-                row.pack_start(keybox, False, False, 0)
+                row.pack_start(key_column, False, False, 0)
                 row.pack_start(action, True, True, 0)
                 card.pack_start(row, False, False, 0)
                 records.append((row, entry.action.lower(), " ".join(sum(entry.chords, [])).lower()))
