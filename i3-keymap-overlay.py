@@ -178,7 +178,7 @@ def parse_kitty_config(path: Path) -> list[Entry]:
 
 
 def vim_key_tokens(lhs: str, leader: str) -> list[str]:
-    lhs = re.sub(r"<leader>", leader, lhs, flags=re.I)
+    lhs = re.sub(r"<leader>", lambda _: leader, lhs, flags=re.I)
     tokens: list[str] = []
     for token in re.findall(r"<[^>]+>|.", lhs):
         if token.isspace():
